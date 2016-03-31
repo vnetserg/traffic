@@ -29,12 +29,21 @@ def get_html_mime(file):
     streams = tcp_streams([dpkt.ethernet.Ethernet(raw).data
                            for ts, raw in pcap])
     st = streams[(ip_src, port_src, ip_dst, port_dst)]
-    try:
+
+    types = {}
+    while "HTTP/" in st:
+        st = st[st.find("HTTP/"):]
         resp = dpkt.http.Response(st)
-    except:
-        return "unknown"
-    else:
-        return resp.headers.get("content-type", "unknown").split(";")[0]
+        if "content-type" in resp.headers:
+            cont = resp.headers["content-type"]
+            types[cont] = types.get(cont, 0) + int(resp.headers.get("content-length", 1))
+        if "content-length" in resp.headers:
+            st = st[st.find("\r\n\r\n")+len("\r\n\r\n")+int(resp.headers["content-length"]):]
+        else:
+            break
+
+    if not types: return "unknown"
+    return max(types.items(), key=lambda t: t[1])[0]
 
 def cp(frm, to):
     with open(frm, "rb") as out:
