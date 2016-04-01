@@ -40,10 +40,19 @@ def get_html_mime(file):
         if "content-length" in resp.headers:
             st = st[st.find("\r\n\r\n")+len("\r\n\r\n")+int(resp.headers["content-length"]):]
         else:
-            break
+            st = st[st.find("\r\n\r\n")+len("\r\n\r\n"):]
 
     if not types: return "unknown"
     return max(types.items(), key=lambda t: t[1])[0]
+
+def is_realtime_heuristic(file):
+    pcap = dpkt.pcap.Reader(open(file, "rb"))
+    t1 = min(pcap, key=lambda x: x[0])[0]
+    t2 = max(pcap, key=lambda x: x[0])[0]
+    if t2 - t1 > 3 and sum(1 for _ in pcap)/(t2-t1) > 50:
+        return True
+    else:
+        return False
 
 def cp(frm, to):
     with open(frm, "rb") as out:
@@ -57,6 +66,7 @@ def main():
     parser.add_argument("-s", "--subproto", help="detect subprotocols", action="store_true")
     parser.add_argument("-m", "--mime", help="parse HTML MIME info", action="store_true")
     parser.add_argument("-m2", "--mimemore", help="parse HTML MIME info with subcategories", action="store_true")
+    parser.add_argument("-r", "--realtime", help="apply realtime heuristic for Skype", action="store_true")
     args = parser.parse_args()
     for file in args.file:
         proto = dpi(file)
@@ -67,6 +77,11 @@ def main():
             if not args.mimemore:
                 mime = mime.split(".")[0]
             path = os.path.join(path, mime)
+        elif proto[0] == u"Skype" and args.realtime:
+            if is_realtime_heuristic(file):
+                path = os.path.join(path, "realtime")
+            else:
+                path = os.path.join(path, "best_effort")
         if not os.path.exists(path):
             os.makedirs(path)
         cp(file, os.path.join(path, os.path.split(file)[-1]))
