@@ -21,7 +21,11 @@ def dpi(file):
 def get_html_mime(file):
     pcap = dpkt.pcap.Reader(open(file, "rb"))
 
-    pkt = next(itertools.islice(pcap, 1, 2))[1]
+    try:
+        pkt = next(itertools.islice(pcap, 1, 2))[1]
+    except StopIteration:
+        return "unknown"
+    
     eth = dpkt.ethernet.Ethernet(pkt)
     ip_src, ip_dst = ip_address(eth.data.src), ip_address(eth.data.dst)
     port_src, port_dst = eth.data.data.sport, eth.data.data.dport
@@ -37,10 +41,9 @@ def get_html_mime(file):
         if "content-type" in resp.headers:
             cont = resp.headers["content-type"]
             types[cont] = types.get(cont, 0) + int(resp.headers.get("content-length", 1))
+        st = st[st.find("\r\n\r\n")+len("\r\n\r\n"):]
         if "content-length" in resp.headers:
-            st = st[st.find("\r\n\r\n")+len("\r\n\r\n")+int(resp.headers["content-length"]):]
-        else:
-            st = st[st.find("\r\n\r\n")+len("\r\n\r\n"):]
+            st = st[int(resp.headers["content-length"]):]
 
     if not types: return "unknown"
     return max(types.items(), key=lambda t: t[1])[0]
@@ -65,16 +68,16 @@ def main():
     parser.add_argument("-d", "--dir", help="directory to place flow groups", default=".")
     parser.add_argument("-s", "--subproto", help="detect subprotocols", action="store_true")
     parser.add_argument("-m", "--mime", help="parse HTML MIME info", action="store_true")
-    parser.add_argument("-m2", "--mimemore", help="parse HTML MIME info with subcategories", action="store_true")
+    parser.add_argument("-m2", "--mime2", help="parse HTML MIME info with subcategories", action="store_true")
     parser.add_argument("-r", "--realtime", help="apply realtime heuristic for Skype", action="store_true")
     args = parser.parse_args()
     for file in args.file:
         proto = dpi(file)
         if proto is None: continue
         path = os.path.join(args.dir, *(proto[:1+int(args.subproto)]))
-        if proto[0] == u"HTTP" and (args.mime or args.mimemore):
+        if proto[0] == u"HTTP" and (args.mime or args.mime2):
             mime = get_html_mime(file).replace("/", ".")
-            if not args.mimemore:
+            if not args.mime2:
                 mime = mime.split(".")[0]
             path = os.path.join(path, mime)
         elif proto[0] == u"Skype" and args.realtime:
