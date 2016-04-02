@@ -1,0 +1,25 @@
+#!/bin/bash
+
+mkdir -p /tmp/traffic/dis
+mkdir /tmp/traffic/dpi
+mkdir /tmp/traffic/sorted
+
+echo -n "Launching dissect... "
+./dissect.py -d /tmp/traffic/dis $@
+echo "OK."
+
+echo -n "Launching dpi... "
+./dpi.py -d /tmp/traffic/dpi -mrq /tmp/traffic/dis/*
+echo "OK."
+
+echo -n "Launching grab... "
+./grab.py /tmp/traffic/dpi -t /tmp/traffic/sorted
+echo "OK."
+
+echo -n "Launching forge... "
+./forge.py /tmp/traffic/sorted -o ./flows.csv
+echo "OK."
+
+echo "Result written to 'flows.csv'"
+
+rm -rf /tmp/traffic

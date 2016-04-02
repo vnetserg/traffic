@@ -40,7 +40,7 @@ def get_html_mime(file):
         try:
             resp = dpkt.http.Response(st)
         except dpkt.dpkt.UnpackError:
-            print("`{}`: invalid http packet".format(file))
+            print("`{}`: invalid http response".format(file))
             break
         if "content-type" in resp.headers:
             cont = resp.headers["content-type"]

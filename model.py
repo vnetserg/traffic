@@ -44,6 +44,16 @@ def preprocess(data, seed=None):
     y = le.fit_transform(data["class"])
     return X, y, le
 
+def cross_class_report(y, p):
+    classes = np.unique(y)
+    res = ps.DataFrame({"y": y, "p": p}, index=None)
+    table = ps.DataFrame(index=classes, columns=classes)
+    for true_cls in classes:
+        tmp = res[res["y"] == true_cls]
+        for pred_cls in classes:
+            table[pred_cls][true_cls] = len(tmp[tmp["p"] == pred_cls])
+    return table
+
 def do_crossval(data, seed=None):
     X, y, label_encoder = preprocess(data)
     model = SVC(C=0.05, kernel='poly', degree=7, random_state=seed)
@@ -52,9 +62,12 @@ def do_crossval(data, seed=None):
         X_test, y_test = X[test_index], y[test_index]
         model.fit(X_train, y_train)
         y_predicted = model.predict(X_test)
-        report = classification_report(label_encoder.inverse_transform(y_test),
-            label_encoder.inverse_transform(y_predicted))
-        print(report, "\n")
+        true_labels = label_encoder.inverse_transform(y_test)
+        predicted_labels = label_encoder.inverse_transform(y_predicted)
+        report = classification_report(true_labels, predicted_labels)
+        cross_report = cross_class_report(true_labels, predicted_labels)
+        print("\n----- FOLD STATS -----")
+        print(report, "\n", cross_report)
 
 def do_test(data, seed=None):
     pass
