@@ -8,11 +8,12 @@ classes = {
         "HTTP/text",
         "HTTP/image",
         "DNS",
-        "BitTorrent"
+        "BitTorrent",
     ],
     1: [
         "HTTP/video",
-        "HTTP/audio"
+        "HTTP/audio",
+        "Quic/multimedia"
     ],
     2: [
         "Skype/realtime"

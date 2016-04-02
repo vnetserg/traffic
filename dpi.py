@@ -37,7 +37,11 @@ def get_html_mime(file):
     types = {}
     while "HTTP/" in st:
         st = st[st.find("HTTP/"):]
-        resp = dpkt.http.Response(st)
+        try:
+            resp = dpkt.http.Response(st)
+        except dpkt.dpkt.UnpackError:
+            print("`{}`: invalid http packet".format(file))
+            break
         if "content-type" in resp.headers:
             cont = resp.headers["content-type"]
             types[cont] = types.get(cont, 0) + int(resp.headers.get("content-length", 1))
@@ -57,6 +61,9 @@ def is_realtime_heuristic(file):
     else:
         return False
 
+def is_multimedia_heuristic(file):
+    return os.path.getsize(file) > 2**20
+
 def cp(frm, to):
     with open(frm, "rb") as out:
         with open(to, "wb") as in_:
@@ -70,6 +77,7 @@ def main():
     parser.add_argument("-m", "--mime", help="parse HTML MIME info", action="store_true")
     parser.add_argument("-m2", "--mime2", help="parse HTML MIME info with subcategories", action="store_true")
     parser.add_argument("-r", "--realtime", help="apply realtime heuristic for Skype", action="store_true")
+    parser.add_argument("-q", "--quic", help="apply heuristic to QUIC to detect multimedia", action="store_true")
     args = parser.parse_args()
     for file in args.file:
         proto = dpi(file)
@@ -85,6 +93,11 @@ def main():
                 path = os.path.join(path, "realtime")
             else:
                 path = os.path.join(path, "best_effort")
+        elif proto[0] == u"Quic":
+            if is_multimedia_heuristic(file):
+                path = os.path.join(path, "multimedia")
+            else:
+                path = os.path.join(path, "other")
         if not os.path.exists(path):
             os.makedirs(path)
         cp(file, os.path.join(path, os.path.split(file)[-1]))
