@@ -12,7 +12,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.preprocessing import LabelEncoder, scale
 from sklearn.cross_validation import KFold
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, precision_recall_fscore_support
 
 generalized_apps = {
     "HTTP.text": "HTML.text/image",
@@ -24,6 +24,36 @@ generalized_apps = {
     "Quic.multimedia": "Quic",
     "Skype.realtime": "Skype",
 }
+
+def all_models(seed = None):
+    '''
+        Сгенерировать все возможные типы моделей.
+        Аргументы:
+            seed - семя генератора псевдослучайных чисел
+        Возвращает: список моделей (не обученных)
+    '''
+    models = []
+    for pen in ("l1", "l2"):
+        for tol in range(1, 31):
+            tol *= 0.01
+            models.append({"model": LogisticRegression(penalty=pen, tol=tol, random_state=seed),
+                "txt": "LogReg (pen: {}, tol: {})".format(pen, tol)})
+    for C in range(1, 21):
+        C *= 0.1
+        for kernel in ('linear', 'poly', 'rbf', 'sigmoid'):
+            models.append({"model": SVC(C=C, kernel=kernel, random_state=seed),
+                "txt": "SVC (C: {}, kernel: {})".format(C, kernel)})
+    for weights in ("uniform", "distance"):
+        for n in range(1, 60, 3):
+            models.append({"model": KNeighborsClassifier(n, weights),
+                "txt": "KNeighbors (n: {}, wieghts: {})".format(n, weights)})
+    for n in range(3, 61, 3):
+        for depth in tuple(range(1, 8)) + (None,):
+            for crit in ("gini", "entropy"):
+                models.append({"model": RandomForestClassifier(n, crit, depth, random_state=seed),
+                    "txt": "RFC (n: {}, crit: {}, depth: {})".format(
+                        n, crit, depth)})
+    return models
 
 def preprocess(data, seed=None):
     '''
@@ -55,9 +85,9 @@ def cross_class_report(y, p):
     return table
 
 def do_crossval(data, seed=None):
-    X, y, label_encoder = preprocess(data)
-    model = SVC(C=0.05, kernel='poly', degree=7, random_state=seed)
-    for train_index, test_index in KFold(len(X), 2, shuffle=True, random_state=seed):
+    X, y, label_encoder = preprocess(data, seed)
+    model = SVC(C=1.1, kernel='linear', random_state=seed)
+    for train_index, test_index in KFold(len(X), 3, shuffle=True, random_state=seed):
         X_train, y_train = X[train_index], y[train_index]
         X_test, y_test = X[test_index], y[test_index]
         model.fit(X_train, y_train)
@@ -70,7 +100,21 @@ def do_crossval(data, seed=None):
         print(report, "\n", cross_report)
 
 def do_test(data, seed=None):
-    pass
+    X, y, label_encoder = preprocess(data, seed)
+    models = all_models()
+    for mdl in models:
+        f1 = []
+        for train_index, test_index in KFold(len(X), 3, shuffle=True, random_state=seed):
+            X_train, y_train = X[train_index], y[train_index]
+            X_test, y_test = X[test_index], y[test_index]
+            mdl["model"].fit(X_train, y_train)
+            y_predicted = mdl["model"].predict(X_test)
+            f1.append(precision_recall_fscore_support(y_test, y_predicted, average='macro')[2])
+        mdl["f1"] = sum(f1)/len(f1)
+        print("{}: {:.4f}".format(mdl["txt"], mdl["f1"]))
+
+    best = max(models, key=lambda x: x["f1"])
+    print("The best model is {} ({})".format(best["txt"], best["f1"]))
 
 def main():
     parser = argparse.ArgumentParser()
