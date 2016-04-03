@@ -20,7 +20,7 @@ FEATURES = [
     "packet_ratio", "proto"
 ]
 
-def parse_flow(pcap):
+def parse_flow(pcap, strip = None):
     ip = dpkt.ethernet.Ethernet(next(pcap.__iter__())[1]).data
     seg = ip.data
     if isinstance(seg, dpkt.tcp.TCP):
@@ -31,6 +31,9 @@ def parse_flow(pcap):
     else:
         raise ValueErrur("Unknown transport protocol: `{}`".format(
             seg.__class__.__name__))
+
+    if strip:
+        pcap = itertools.islice(pcap, None, strip)
 
     client = (ip.src, seg.sport)
     server = (ip.dst, seg.dport)
@@ -123,6 +126,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("dir", help="directory with classified pcap files")
     parser.add_argument("-o", "--output", help="csv output file", default="flows.csv")
+    parser.add_argument("-s", "--strip", help="parse only first NUM packets", type=int)
     args = parser.parse_args()
     flows = {ftr: [] for ftr in FEATURES}
     for clsfolder in os.listdir(args.dir):
@@ -132,7 +136,7 @@ def main():
         for label in os.listdir(os.path.join(args.dir, clsfolder)):
             for file in os.listdir(os.path.join(args.dir, clsfolder, label)):
                 full_path = os.path.join(args.dir, clsfolder, label, file)
-                flow = parse_flow(dpkt.pcap.Reader(open(full_path, "rb")))
+                flow = parse_flow(dpkt.pcap.Reader(open(full_path, "rb")), args.strip)
                 if flow is not None:
                     flow["name"] = file.split(".")[0]
                     flow["app"] = label

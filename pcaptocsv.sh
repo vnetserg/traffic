@@ -1,5 +1,21 @@
 #!/bin/bash
 
+strip=0
+outfile='flows.csv'
+
+while getopts ":o:s:" opt; do
+    case $opt in
+    o) outfile=$OPTARG ;;
+    s) strip=$OPTARG ;;
+    :)
+        echo "Option -$OPTARG requires an argument." >&2
+        exit 1
+        ;;
+    esac
+    shift $((OPTIND-1))
+    OPTIND=0
+done
+
 mkdir -p /tmp/traffic/dis
 mkdir /tmp/traffic/dpi
 mkdir /tmp/traffic/sorted
@@ -17,9 +33,9 @@ echo -n "Launching grab... "
 echo "OK."
 
 echo -n "Launching forge... "
-./forge.py /tmp/traffic/sorted -o ./flows.csv
+./forge.py /tmp/traffic/sorted -o $outfile -s $strip
 echo "OK."
 
-echo "Result written to 'flows.csv'"
+echo "Result written to '$outfile'"
 
 rm -rf /tmp/traffic
