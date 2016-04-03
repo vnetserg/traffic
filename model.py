@@ -150,7 +150,7 @@ def main():
     args = parser.parse_args()
     if not args.crossval and not args.test:
         return print("No switch provided (-c or -t)")
-    data = ps.read_csv(args.crossval or args.test).drop(["Unnamed: 0"], axis=1)
+    data = ps.read_csv(args.crossval or args.test)
 
     if args.random:
         np.random.seed(args.random)

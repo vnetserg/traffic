@@ -141,7 +141,7 @@ def main():
                     for key in flows.iterkeys():
                         flows[key].append(flow[key])
     data = ps.DataFrame(flows)
-    data.to_csv(args.output)
+    data.to_csv(args.output, index=False)
 
 if __name__ == "__main__":
     main()
