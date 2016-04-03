@@ -74,6 +74,22 @@ def preprocess(data, seed=None):
     y = le.fit_transform(data["class"])
     return X, y, le
 
+def fair_folds(data, n_folds, seed=None):
+    class_indexes = {cls: data[data["class"] == cls].index.to_series() for cls in data["class"].unique()}
+    folds = []
+    for i in range(n_folds):
+        fold_index = ps.Series()
+        for cls, cls_index in class_indexes.items():
+            cls_fold = cls_index.sample(frac=1/(n_folds-i), random_state=seed)
+            class_indexes[cls] = cls_index[~cls_index.isin(cls_fold)]
+            fold_index = ps.concat([fold_index, cls_fold])
+        folds.append(fold_index)
+    array = ps.Series(range(len(data)))
+    for test_fold in folds:
+        train_fold = array[~array.isin(test_fold)].as_matrix()
+        test_fold = test_fold.as_matrix()
+        yield train_fold, test_fold
+
 def cross_class_report(y, p):
     classes = np.unique(y)
     res = ps.DataFrame({"y": y, "p": p}, index=None)
@@ -86,8 +102,10 @@ def cross_class_report(y, p):
 
 def do_crossval(data, seed=None):
     X, y, label_encoder = preprocess(data, seed)
-    model = SVC(C=1.1, kernel='linear', random_state=seed)
-    for train_index, test_index in KFold(len(X), 3, shuffle=True, random_state=seed):
+    #model = SVC(C=1.1, kernel='linear', random_state=seed)
+    #model = KNeighborsClassifier(1, "uniform")
+    model = RandomForestClassifier(42, "entropy", 6, random_state=seed)
+    for train_index, test_index in fair_folds(data, 3, seed):
         X_train, y_train = X[train_index], y[train_index]
         X_test, y_test = X[test_index], y[test_index]
         model.fit(X_train, y_train)
@@ -99,12 +117,19 @@ def do_crossval(data, seed=None):
         print("\n----- FOLD STATS -----")
         print(report, "\n", cross_report)
 
+    cols = data.drop(["class"], axis=1).columns.to_series()
+    imps = model.feature_importances_
+    assert len(cols) == len(imps)
+    print("\nFEATURE IMPORTANCES:")
+    for imp, col in sorted(zip(imps, cols), reverse=True):
+        print("{}: {}".format(col, imp))
+
 def do_test(data, seed=None):
     X, y, label_encoder = preprocess(data, seed)
     models = all_models()
     for mdl in models:
         f1 = []
-        for train_index, test_index in KFold(len(X), 3, shuffle=True, random_state=seed):
+        for train_index, test_index in fair_folds(data, 3, seed):
             X_train, y_train = X[train_index], y[train_index]
             X_test, y_test = X[test_index], y[test_index]
             mdl["model"].fit(X_train, y_train)
@@ -125,11 +150,18 @@ def main():
     args = parser.parse_args()
     if not args.crossval and not args.test:
         return print("No switch provided (-c or -t)")
-    data = ps.read_csv(args.crossval or args.test)
+    data = ps.read_csv(args.crossval or args.test).drop(["Unnamed: 0"], axis=1)
+
+    if args.random:
+        np.random.seed(args.random)
+        data = data.iloc[np.random.permutation(len(data))]
+
     if args.apps:
-        data["class"] = [generalized_apps[row["app"]]
-                           for _, row in data.iterrows()]
+        #data["class"] = [generalized_apps[row["app"]]
+        #                   for _, row in data.iterrows()]
+        data["class"] = data["app"]
     data = data.drop(["app", "name"], axis=1)
+
     if args.crossval:
         do_crossval(data, args.random)
     elif args.test:
