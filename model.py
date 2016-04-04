@@ -1,5 +1,7 @@
-#!/usr/bin/python3.4
+#!/usr/bin/python2.7
 # -*- coding: utf-8 -*-
+
+from __future__ import division
 
 import argparse, pickle
 
@@ -103,15 +105,15 @@ def do_crossval(data, seed=None):
         predicted_labels = labeler.inverse_transform(y_predicted)
         report = classification_report(true_labels, predicted_labels)
         cross_report = cross_class_report(true_labels, predicted_labels)
-        print("\n----- FOLD STATS -----")
-        print(report, "\n", cross_report)
+        print "\n----- FOLD STATS -----"
+        print report, "\n", cross_report
 
     cols = data.drop(["class"], axis=1).columns.to_series()
     imps = model.feature_importances_
     assert len(cols) == len(imps)
-    print("\nFEATURE IMPORTANCES:")
+    print "\nFEATURE IMPORTANCES:" 
     for imp, col in sorted(zip(imps, cols), reverse=True):
-        print("{}: {}".format(col, imp))
+        print "{}: {}".format(col, imp)
 
 def do_eval(data, seed=None):
     X, y, label_encoder = preprocess(data)
@@ -125,10 +127,10 @@ def do_eval(data, seed=None):
             y_predicted = mdl["model"].predict(X_test)
             f1.append(precision_recall_fscore_support(y_test, y_predicted, average='macro')[2])
         mdl["f1"] = sum(f1)/len(f1)
-        print("{}: {:.4f}".format(mdl["txt"], mdl["f1"]))
+        print "{}: {:.4f}".format(mdl["txt"], mdl["f1"])
 
     best = max(models, key=lambda x: x["f1"])
-    print("The best model is {} ({})".format(best["txt"], best["f1"]))
+    print "The best model is {} ({})".format(best["txt"], best["f1"])
 
 def train_model(data, seed=None):
     X, y, scaler, labeler = preprocess(data)
@@ -163,7 +165,8 @@ def main():
     elif args.load:
         model, scaler, labeler = pickle.load(open(args.load, "rb"))
     else:
-        return print("No action specified.")
+        print "No action specified."
+        return
 
     if args.save:
         pickle.dump((model, scaler, labeler), open(args.save, "wb"))
