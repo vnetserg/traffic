@@ -2,11 +2,13 @@
 
 strip=0
 outfile='flows.csv'
+all=''
 
-while getopts ":o:s:" opt; do
+while getopts ":o:s:a" opt; do
     case $opt in
     o) outfile=$OPTARG ;;
     s) strip=$OPTARG ;;
+    a) all="-a" ;;
     :)
         echo "Option -$OPTARG requires an argument." >&2
         exit 1
@@ -16,26 +18,7 @@ while getopts ":o:s:" opt; do
     OPTIND=0
 done
 
-mkdir -p /tmp/traffic/dis
-mkdir /tmp/traffic/dpi
-mkdir /tmp/traffic/sorted
+./pcaptodpi.sh /tmp/traffic/dpi $@
+./dpitocsv.sh -o $outfile -s $strip $all /tmp/traffic/dpi
 
-echo -n "Launching dissect... "
-./dissect.py -d /tmp/traffic/dis $@
-echo "OK."
-
-echo -n "Launching dpi... "
-./dpi.py -d /tmp/traffic/dpi -mrq /tmp/traffic/dis/*
-echo "OK."
-
-echo -n "Launching grab... "
-./grab.py /tmp/traffic/dpi -t /tmp/traffic/sorted
-echo "OK."
-
-echo -n "Launching forge... "
-./forge.py /tmp/traffic/sorted -o $outfile -s $strip
-echo "OK."
-
-echo "Result written to '$outfile'"
-
-rm -rf /tmp/traffic
+rm -rf /tmp/traffic/dpi

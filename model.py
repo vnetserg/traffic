@@ -1,7 +1,7 @@
 #!/usr/bin/python3.4
 # -*- coding: utf-8 -*-
 
-import argparse
+import argparse, pickle
 
 import pandas as ps
 import numpy as np
@@ -10,20 +10,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
-from sklearn.preprocessing import LabelEncoder, scale
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.cross_validation import KFold
 from sklearn.metrics import classification_report, precision_recall_fscore_support
-
-generalized_apps = {
-    "HTTP.text": "HTML.text/image",
-    "HTTP.image": "HTML.text/image",
-    "DNS": "DNS",
-    "BitTorrent": "BitTorrent",
-    "HTTP.audio": "HTML.multimedia",
-    "HTTP.video": "HTML.multimedia",
-    "Quic.multimedia": "Quic",
-    "Skype.realtime": "Skype",
-}
 
 def all_models(seed = None):
     '''
@@ -55,24 +44,22 @@ def all_models(seed = None):
                         n, crit, depth)})
     return models
 
-def preprocess(data, seed=None):
-    '''
-    n_samples = min(len(data[data["class"] == clsval])
-        for clsval in data["class"].unique())
-    data = data.iloc[np.random.permutation(len(data))]
-    new_data = None
-    for clsval in data["class"].unique():
-        if new_data is None:
-            new_data = data[data["class"] == clsval][:n_samples]
-        else:
-            new_data = ps.concat([new_data,
-                data[data["class"] == clsval][:n_samples]])
-    '''
+def get_data(file, apps=False, seed=None, drop_classes=False):
+    data = ps.read_csv(file)
+    if apps:
+        data["class"] = data["app"]
+    data = data.drop(["app", "name"] + (["class"] if drop_classes and "class" in data.columns else []), axis=1)
+    if seed:
+        np.random.seed(seed)
+        data = data.iloc[np.random.permutation(len(data))]
+    return data
 
-    X = scale(data.drop(["class"], axis=1))
-    le = LabelEncoder()
-    y = le.fit_transform(data["class"])
-    return X, y, le
+def preprocess(data):
+    scaler = StandardScaler()
+    X = scaler.fit_transform(data.drop(["class"], axis=1))
+    labeler = LabelEncoder()
+    y = labeler.fit_transform(data["class"])
+    return X, y, scaler, labeler
 
 def fair_folds(data, n_folds, seed=None):
     class_indexes = {cls: data[data["class"] == cls].index.to_series() for cls in data["class"].unique()}
@@ -101,17 +88,19 @@ def cross_class_report(y, p):
     return table
 
 def do_crossval(data, seed=None):
-    X, y, label_encoder = preprocess(data, seed)
+    X, y, scaler, labeler = preprocess(data)
+
     #model = SVC(C=1.1, kernel='linear', random_state=seed)
     #model = KNeighborsClassifier(1, "uniform")
     model = RandomForestClassifier(42, "entropy", 6, random_state=seed)
+
     for train_index, test_index in fair_folds(data, 3, seed):
         X_train, y_train = X[train_index], y[train_index]
         X_test, y_test = X[test_index], y[test_index]
         model.fit(X_train, y_train)
         y_predicted = model.predict(X_test)
-        true_labels = label_encoder.inverse_transform(y_test)
-        predicted_labels = label_encoder.inverse_transform(y_predicted)
+        true_labels = labeler.inverse_transform(y_test)
+        predicted_labels = labeler.inverse_transform(y_predicted)
         report = classification_report(true_labels, predicted_labels)
         cross_report = cross_class_report(true_labels, predicted_labels)
         print("\n----- FOLD STATS -----")
@@ -124,8 +113,8 @@ def do_crossval(data, seed=None):
     for imp, col in sorted(zip(imps, cols), reverse=True):
         print("{}: {}".format(col, imp))
 
-def do_test(data, seed=None):
-    X, y, label_encoder = preprocess(data, seed)
+def do_eval(data, seed=None):
+    X, y, label_encoder = preprocess(data)
     models = all_models()
     for mdl in models:
         f1 = []
@@ -141,31 +130,50 @@ def do_test(data, seed=None):
     best = max(models, key=lambda x: x["f1"])
     print("The best model is {} ({})".format(best["txt"], best["f1"]))
 
+def train_model(data, seed=None):
+    X, y, scaler, labeler = preprocess(data)
+    model = RandomForestClassifier(42, "entropy", 6, random_state=seed)
+    model.fit(X, y)
+    return model, scaler, labeler
+
+def do_prediction(data, model, scaler, labeler):
+    X = scaler.transform(data)
+    return labeler.inverse_transform(model.predict(X))
+
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("-t", "--train", help="train model on a specified file", metavar="FILE")
+    parser.add_argument("-s", "--save", help="save trained model in a file", metavar="FILE")
+    parser.add_argument("-l", "--load", help="load trained model from a file", metavar="FILE")
+    parser.add_argument("-p", "--predict", help="predict classes for a file", nargs=2, metavar=("TESTFILE", "OUTFILE"))
     parser.add_argument("-c", "--crossval", help="do cross-validation", metavar="FILE")
-    parser.add_argument("-t", "--test", help="test different models", metavar="FILE")
+    parser.add_argument("-e", "--evaluate", help="evaluate different models", metavar="FILE")
     parser.add_argument("-a", "--apps", help="classify applications", action="store_true")
-    parser.add_argument("-r", "--random", help="random number fenerator seed", metavar="SEED", type=int)
+    parser.add_argument("-r", "--random", help="random number generator seed", metavar="SEED", type=int)
     args = parser.parse_args()
-    if not args.crossval and not args.test:
-        return print("No switch provided (-c or -t)")
-    data = ps.read_csv(args.crossval or args.test)
-
-    if args.random:
-        np.random.seed(args.random)
-        data = data.iloc[np.random.permutation(len(data))]
-
-    if args.apps:
-        #data["class"] = [generalized_apps[row["app"]]
-        #                   for _, row in data.iterrows()]
-        data["class"] = data["app"]
-    data = data.drop(["app", "name"], axis=1)
 
     if args.crossval:
-        do_crossval(data, args.random)
-    elif args.test:
-        do_test(data, args.random)
+        return do_crossval(get_data(args.crossval, args.apps, args.random), args.random)
+    elif args.evaluate:
+        return do_eval(get_data(args.evaluate, args.apps, args.random), args.random)
+    
+    if args.train:
+        data = get_data(args.train, args.apps, args.random)
+        model, scaler, labeler = train_model(data, args.random)
+    elif args.load:
+        model, scaler, labeler = pickle.load(open(args.load, "rb"))
+    else:
+        return print("No action specified.")
+
+    if args.save:
+        pickle.dump((model, scaler, labeler), open(args.save, "wb"))
+
+    if args.predict:
+        testfile, outfile = args.predict
+        test_data = get_data(testfile, args.apps, drop_classes=True)
+        classes = do_prediction(test_data, model, scaler, labeler)
+        new_data = ps.concat([test_data, ps.DataFrame({"class": classes})], axis=1)
+        new_data.to_csv(outfile, index=None)
 
 if __name__ == "__main__":
     main()
