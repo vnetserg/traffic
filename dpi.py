@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse, os, re, dpkt, itertools
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, call
 
 from reassemble_tcp import tcp_streams, ip_address
 
@@ -56,7 +56,7 @@ def is_realtime_heuristic(file):
     pcap = dpkt.pcap.Reader(open(file, "rb"))
     t1 = min(pcap, key=lambda x: x[0])[0]
     t2 = max(pcap, key=lambda x: x[0])[0]
-    if t2 - t1 > 3 and sum(1 for _ in pcap)/(t2-t1) > 50:
+    if t2 - t1 > 10 and sum(1 for _ in pcap)/(t2-t1) > 30:
         return True
     else:
         return False
@@ -65,9 +65,11 @@ def is_multimedia_heuristic(file):
     return os.path.getsize(file) > 2**20
 
 def cp(frm, to):
-    with open(frm, "rb") as out:
-        with open(to, "wb") as in_:
-            in_.write(out.read())
+    assert os.path.exists(frm)
+    call(["ln", frm, to])
+    #with open(frm, "rb") as out:
+    #    with open(to, "wb") as in_:
+    #        in_.write(out.read())
 
 def main():
     parser = argparse.ArgumentParser()
@@ -92,8 +94,8 @@ def main():
             if is_realtime_heuristic(file):
                 path = os.path.join(path, "realtime")
             else:
-                path = os.path.join(path, "best_effort")
-        elif proto[0] == u"Quic":
+                path = os.path.join(path, "other")
+        elif proto[0] == u"Quic" or proto[0] == u"SSL" and args.quic:
             if is_multimedia_heuristic(file):
                 path = os.path.join(path, "multimedia")
             else:

@@ -1,7 +1,7 @@
 #!/usr/bin/python3.4
 # -*- coding: utf-8 -*-
 
-import os, argparse
+import os, argparse, subprocess
 
 classes = {
     0: [
@@ -9,11 +9,15 @@ classes = {
         "HTTP/image",
         "DNS",
         "BitTorrent",
+        "Skype/other",
+        "Quic/other",
+        ("SSL/other", "SSL_No_Cert"),
     ],
     1: [
         "HTTP/video",
         "HTTP/audio",
-        "Quic/multimedia"
+        "Quic/multimedia",
+        "SSL/multimedia"
     ],
     2: [
         "Skype/realtime"
@@ -21,9 +25,11 @@ classes = {
 }
 
 def cp(frm, to):
-    with open(frm, "rb") as out:
-        with open(to, "wb") as in_:
-            in_.write(out.read())
+    assert os.path.exists(frm)
+    subprocess.call(["ln", frm, to])
+    #with open(frm, "rb") as out:
+    #    with open(to, "wb") as in_:
+    #        in_.write(out.read())
 
 def harvest_folder(path, blacklist):
     for file in os.listdir(path):
@@ -45,15 +51,18 @@ def main():
         if not os.path.exists(cls_dir):
             os.makedirs(cls_dir)
         for subdir in subdirs:
-            path = os.path.join(args.path, *(subdir.split("/")))
-            if not os.path.exists(path): continue
-            for file in os.listdir(path):
-                dst_folder = os.path.join(cls_dir, subdir.replace("/", "."))
-                if not os.path.exists(dst_folder):
-                    os.makedirs(dst_folder)
-                cp(os.path.join(path, file), os.path.join(dst_folder, file))
-                if args.all:
-                    processed_files.add(file)
+            if type(subdir) == str:
+                subdir = (subdir,)
+            for same_dir in subdir:
+                path = os.path.join(args.path, *(same_dir.split("/")))
+                if not os.path.exists(path): continue
+                for file in os.listdir(path):
+                    dst_folder = os.path.join(cls_dir, subdir[0].replace("/", "."))
+                    if not os.path.exists(dst_folder):
+                        os.makedirs(dst_folder)
+                    cp(os.path.join(path, file), os.path.join(dst_folder, file))
+                    if args.all:
+                        processed_files.add(file)
     if args.all:
         os.makedirs(os.path.join(args.targetdir, "class0", "Other"))
         for file in harvest_folder(args.path, processed_files):

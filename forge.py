@@ -10,20 +10,32 @@ import numpy as np
 FEATURES = [
     "name", "app", "class",
     "bulk0", "bulk1", "bulk2", "bulk3",
+    "client_packet0", "client_packet1",
+    "server_packet0", "server_packet1",
     "client_bulksize_avg", "client_bulksize_dev",
     "server_bulksize_avg", "server_bulksize_dev",
     "client_packetsize_avg", "client_packetsize_dev",
     "server_packetsize_avg", "server_packetsize_dev",
     "client_packets_per_bulk", "server_packets_per_bulk",
     "client_effeciency", "server_efficiency",
-    "byte_ratio", "payload_ratio",
-    "packet_ratio", "proto"
+    "byte_ratio", "payload_ratio", "packet_ratio",
+    "client_bytes", "client_payload", "client_packets", "client_bulks",
+    "server_bytes", "server_payload", "server_packets", "server_bulks",
+    "proto"
 ]
 
 def parse_flow(pcap, strip = None):
-    ip = dpkt.ethernet.Ethernet(next(pcap.__iter__())[1]).data
+    pcap_iter = pcap.__iter__()
+    ip = dpkt.ethernet.Ethernet(next(pcap_iter)[1]).data
     seg = ip.data
     if isinstance(seg, dpkt.tcp.TCP):
+        # Смотрим, чтобы в первых двух пакетах был флаг SYN:
+        try:
+            seg2 = dpkt.ethernet.Ethernet(next(pcap_iter)[1]).data.data
+        except StopIteration:
+            return None
+        if not (seg.flags & dpkt.tcp.TH_SYN and seg2.flags & dpkt.tcp.TH_SYN):
+            return None
         proto = "tcp"
         pcap = itertools.islice(pcap, 3, None) # срезаем tcp handshake
     elif isinstance(seg, dpkt.udp.UDP):
@@ -85,6 +97,10 @@ def parse_flow(pcap, strip = None):
         "bulk1": server_bulks[0] if len(server_bulks) > 0 else 0,
         "bulk2": client_bulks[1] if len(client_bulks) > 1 else 0,
         "bulk3": server_bulks[1] if len(server_bulks) > 1 else 0,
+        "client_packet0": client_packets[0] if len(client_packets) > 0 else 0,
+        "client_packet1": client_packets[1] if len(client_packets) > 1 else 0,
+        "server_packet0": server_packets[0] if len(server_packets) > 0 else 0,
+        "server_packet1": server_packets[1] if len(server_packets) > 1 else 0,
     }
 
     if client_bulks and client_bulks[0] == 0:
@@ -109,6 +125,14 @@ def parse_flow(pcap, strip = None):
         "byte_ratio": sum(client_packets)/sum(server_packets),
         "payload_ratio": sum(client_bulks)/sum(server_bulks),
         "packet_ratio": len(client_packets)/len(server_packets),
+        "client_bytes": sum(client_packets),
+        "client_payload": sum(client_bulks),
+        "client_packets": len(client_packets),
+        "client_bulks": len(client_bulks),
+        "server_bytes": sum(server_packets),
+        "server_payload": sum(server_bulks),
+        "server_packets": len(server_packets),
+        "server_bulks": len(server_bulks),
         "proto": int(proto == "tcp")
     })
 

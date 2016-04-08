@@ -18,17 +18,17 @@ while getopts ":o:s:a" opt; do
     OPTIND=0
 done
 
-rm -rf /tmp/traffic/sorted
-mkdir -p /tmp/traffic/sorted
+rm -rf tmp/sorted/
+mkdir -p tmp/sorted/
 
 echo -n "Launching grab... "
-./grab.py /tmp/traffic/dpi -t /tmp/traffic/sorted $all
+./grab.py $1 -t tmp/sorted/ $all
 echo "OK."
 
 echo -n "Launching forge... "
-./forge.py /tmp/traffic/sorted -o $outfile -s $strip
+./forge.py tmp/sorted/ -o $outfile -s $strip
 echo "OK."
 
 echo "Result written to '$outfile'"
 
-rm -rf /tmp/traffic/sorted
+rm -rf tmp/sorted/

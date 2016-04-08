@@ -94,7 +94,9 @@ def do_crossval(data, seed=None):
 
     #model = SVC(C=1.1, kernel='linear', random_state=seed)
     #model = KNeighborsClassifier(1, "uniform")
-    model = RandomForestClassifier(42, "entropy", 6, random_state=seed)
+    
+    #model = RandomForestClassifier(27, "entropy", 7, random_state=seed)
+    model = RandomForestClassifier(9, "gini", None, random_state=seed)
 
     for train_index, test_index in fair_folds(data, 3, seed):
         X_train, y_train = X[train_index], y[train_index]
@@ -116,7 +118,7 @@ def do_crossval(data, seed=None):
         print "{}: {}".format(col, imp)
 
 def do_eval(data, seed=None):
-    X, y, label_encoder = preprocess(data)
+    X, y, scaler, labeler = preprocess(data)
     models = all_models()
     for mdl in models:
         f1 = []
@@ -134,7 +136,10 @@ def do_eval(data, seed=None):
 
 def train_model(data, seed=None):
     X, y, scaler, labeler = preprocess(data)
-    model = RandomForestClassifier(42, "entropy", 6, random_state=seed)
+    model = RandomForestClassifier(27, "entropy", 7, random_state=seed)
+    #model = RandomForestClassifier(36, "entropy", None, random_state=seed)
+    #model = RandomForestClassifier(15, "gini", None, random_state=seed) # модель для flow_v8_s10
+    #model = RandomForestClassifier(18, "entropy", None, random_state=seed) # модель для flow_v8_s100 и flow_v8_s1000
     model.fit(X, y)
     return model, scaler, labeler
 

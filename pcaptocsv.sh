@@ -18,7 +18,7 @@ while getopts ":o:s:a" opt; do
     OPTIND=0
 done
 
-./pcaptodpi.sh /tmp/traffic/dpi $@
-./dpitocsv.sh -o $outfile -s $strip $all /tmp/traffic/dpi
+./pcaptodpi.sh tmp/dpi $@
+./dpitocsv.sh -o $outfile -s $strip $all tmp/dpi
 
-rm -rf /tmp/traffic/dpi
+rm -rf tmp/
